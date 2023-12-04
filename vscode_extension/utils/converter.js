@@ -1,3 +1,5 @@
+//--------------------GOTO LINE X------------------------
+
 function needToMove(grammaticalLine) {
     const lineNumberRegex = /line (\d+)/i;
     const match = grammaticalLine.match(lineNumberRegex);
@@ -26,6 +28,7 @@ function handleCursorMove(grammaticalLine, vscode) {
 }
 
 
+//--------------------SELECT LINES FROM X TO Y------------------------
 function needToSelect(grammaticalLine) {
     const selectLinesRegex = /^\s*(select|choose) (line|lines)(?: from)? (\d+) to (\d+)\s*$/i;
     const match = grammaticalLine.match(selectLinesRegex);
@@ -35,7 +38,6 @@ function needToSelect(grammaticalLine) {
         return null;
     }
 }
-
 
 function selectLines(startLine, endLine, vscode) {
     const editor = vscode.window.activeTextEditor;
@@ -57,6 +59,124 @@ function handleSelection(grammaticalLine, vscode) {
     else return false;
 }
 
+//--------------------------COPY-------------------------------------
+function needToCopy(grammaticalLine) {
+    const copyRegex = /copy\s+from\s+line\s+(\d+) to (\d+)/i;
+    const match = grammaticalLine.match(copyRegex);
+    if (match) {
+        const startLine = parseInt(match[1]);
+        const endLine = parseInt(match[2]);
+        console.log(startLine, endLine);
+        return { startLine, endLine };
+    }
+    return null
+
+}
+
+function copy(startLine, endLine, vscode) {
+    const editor = vscode.window.activeTextEditor;
+    const document = editor.document;
+    const linesText = [];
+    for (let lineNumber = startLine - 1; lineNumber < endLine; lineNumber++) {
+        const lineText = document.lineAt(lineNumber).text;
+        linesText.push(lineText);
+    }
+    const linesContent = linesText.join('\n');
+    vscode.env.clipboard.writeText(linesContent);
+    vscode.window.showInformationMessage(`Lines from ${startLine} to ${endLine} copied to clipboard.`);
+
+}
+
+function handleCopy(grammaticalLine, vscode) {
+    const lines = needToCopy(grammaticalLine)
+
+    if (lines != null) {
+        copy(lines.startLine, lines.endLine, vscode)
+        return true
+    }
+    else return false;
+
+}
+
+
+//--------------------------PASTE-------------------------------------
+function needToPaste(grammaticalLine) {
+    const pasteRegex = /\bpaste(?:\s+(?:at|to)\s+line)?\s+(\d+)/i;
+    const match = grammaticalLine.match(pasteRegex);
+    if (match) {
+        const lineNumber = parseInt(match[1]);
+        return lineNumber
+    }
+    return null
+}
+async function paste(lineNumber, vscode) {
+    const editor = vscode.window.activeTextEditor;
+    const document = editor.document;
+    try {
+
+        const clipboardContent = await vscode.env.clipboard.readText();
+        const position = new vscode.Position(lineNumber - 1, 0);
+        const edit = new vscode.TextEdit(new vscode.Range(position, position), clipboardContent);
+        const editBuilder = new vscode.WorkspaceEdit();
+        editBuilder.set(document.uri, [edit]);
+
+        await vscode.workspace.applyEdit(editBuilder);
+        vscode.window.showInformationMessage(`Clipboard content pasted at line ${lineNumber}.`);
+    } catch (error) {
+        vscode.window.showErrorMessage(`Error reading clipboard: ${error.message}`);
+    }
+}
+
+function handlePaste(grammaticalLine, vscode) {
+
+    const lineNumber = needToPaste(grammaticalLine)
+    if (lineNumber != null) {
+        paste(lineNumber, vscode)
+        return true
+    }
+    else return false;
+}
+
+
+//--------------------------UNDO-------------------------------------
+function needToUndo(grammaticalLine) {
+    const undoRegex = /\bundo\b/i;
+    const match = grammaticalLine.match(undoRegex);
+    if (match) {
+        return true
+    }
+    return false
+}
+
+function handleUndo(grammaticalLine, vscode) {
+    if (needToUndo(grammaticalLine)) {
+        vscode.commands.executeCommand('undo');
+        return true
+    }
+    else return false;
+}
+
+
+//--------------------------REDO-------------------------------------
+function needToRedo(grammaticalLine) {
+    const undoRegex = /\bredo\b/i;
+    const match = grammaticalLine.match(undoRegex);
+    if (match) {
+        return true
+    }
+    return false
+}
+
+function handleRedo(grammaticalLine, vscode) {
+    if (needToRedo(grammaticalLine)) {
+        vscode.commands.executeCommand('redo');
+        return true
+    }
+    else return false;
+}
+
+
+//--------------------PRINT X------------------------
 function handlePrint(grammaticalLine) {
 
     const printRegex = /^(print|log|output|console\.log|console|)\s+(.+)$/i;
@@ -68,12 +188,10 @@ function handlePrint(grammaticalLine) {
 }
 
 
-
-
-
 module.exports = function convertGrammaticalLineToCode(vscode, grammaticalLine) {
     let executedInternalCommand = false
-    if (handleCursorMove(grammaticalLine, vscode) || handleSelection(grammaticalLine, vscode)) {
+
+    if (handleCopy(grammaticalLine, vscode) || handlePaste(grammaticalLine, vscode) || handleUndo(grammaticalLine, vscode) || handleRedo(grammaticalLine, vscode) || handleCursorMove(grammaticalLine, vscode) || handleSelection(grammaticalLine, vscode)) {
         executedInternalCommand = true
     }
 
@@ -85,8 +203,12 @@ module.exports = function convertGrammaticalLineToCode(vscode, grammaticalLine) 
 
 
 
-
 //handled commands:
-// go to line 10
-// print abc
-// select lines 10 to 12
+// go to line x
+// print x
+// select lines x to y
+//copy from line x to y
+//paste at line x
+//undo
+//redo
+
