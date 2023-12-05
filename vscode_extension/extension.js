@@ -13,8 +13,12 @@ const { executeCommand } = require('./utils/executeCommands');
 // 	});
 // }
 function activate(context) {
-	const command = 'paste to line 23';
+	// const command = 'paste to line 23';
 	// const command = 'copy from line 4 to 7'
+	// const command = 'create variable name';
+	// const command = 'replace name with newname';
+	// const command = 'create function myFunction';
+	const command = 'else';
 	executeCommand(vscode, command);
 
 }
