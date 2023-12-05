@@ -1,8 +1,9 @@
 //--------------------GOTO LINE X------------------------
 
 function needToMove(grammaticalLine) {
-    const lineNumberRegex = /\bgo\s*to(?:\s*line)?\s*\d+\b/;
+    const lineNumberRegex = /\bgo\s*to(?:\s*line)?\s*(\d+)\b/;
     const match = grammaticalLine.match(lineNumberRegex);
+
     if (match) return match[1]
     else return null
 }
@@ -26,7 +27,6 @@ function handleCursorMove(grammaticalLine, vscode) {
     else return false;
 
 }
-
 
 //--------------------SELECT LINES FROM X TO Y------------------------
 function needToSelect(grammaticalLine) {
@@ -98,7 +98,6 @@ function handleCopy(grammaticalLine, vscode) {
 
 }
 
-
 //--------------------------PASTE-------------------------------------
 function needToPaste(grammaticalLine) {
     const pasteRegex = /\bpaste(?:\s+(?:at|to)\s+line)?\s+(\d+)/i;
@@ -137,7 +136,6 @@ function handlePaste(grammaticalLine, vscode) {
     else return false;
 }
 
-
 //--------------------------UNDO-------------------------------------
 function needToUndo(grammaticalLine) {
     const undoRegex = /\bundo\b/i;
@@ -156,7 +154,6 @@ function handleUndo(grammaticalLine, vscode) {
     else return false;
 }
 
-
 //--------------------------REDO-------------------------------------
 function needToRedo(grammaticalLine) {
     const undoRegex = /\bredo\b/i;
@@ -174,7 +171,6 @@ function handleRedo(grammaticalLine, vscode) {
     }
     else return false;
 }
-
 
 //--------------------PRINT X------------------------
 function handlePrint(grammaticalLine) {
@@ -235,7 +231,6 @@ function handleFunction(grammaticalLine) {
     }
 }
 
-
 //--------------------VARIABLE DECLARATION------------------------
 function handleVariableDeclaration(grammaticalLine) {
 
@@ -293,8 +288,35 @@ function handleVariableDeclaration(grammaticalLine) {
 }
 
 //--------------------FIND & REPLACE----------------------------------------
+function changeNewValue(line) {
+    const lessThanOrEqualRegex = /\bless than or equal\b/g;
+    const greaterThanOrEqualRegex = /\bgreater than or equal\b/g;
+    const lessThanRegex = /\bless than\b/g;
+    const greaterThanRegex = /\bgreater than\b/g;
+    const equalRegex = /\bequals?\b/g;
+
+    if (lessThanOrEqualRegex.test(line)) {
+        return line.replace(lessThanOrEqualRegex, '<=');
+    }
+    else if (greaterThanOrEqualRegex.test(line)) {
+        return line.replace(greaterThanOrEqualRegex, '>=');
+    }
+    else if (lessThanRegex.test(line)) {
+        return line.replace(lessThanRegex, '<');
+    }
+    else if (greaterThanRegex.test(line)) {
+        return line.replace(greaterThanRegex, '>');
+    }
+    else if (equalRegex.test(line)) {
+        return line.replace(equalRegex, '==');
+    }
+    else {
+        return line;
+    }
+}
+
 function handleReplace(grammaticalLine, vscode) {
-    const regex = /\breplace\s+(\S+)\s+with\s+(\S+)\b/;
+    const regex = /\breplace\s+(\S+)\s+with\s+([\s\S]+)\b/;
     const match = grammaticalLine.match(regex);
     if (match) {
         var oldValue = match[1];
@@ -313,6 +335,8 @@ function handleReplace(grammaticalLine, vscode) {
 
     const oldRegex = new RegExp(`\\b${oldValue}\\b`, 'g');
     if (wholeLine.match(oldRegex)) {
+        if (oldValue == 'condition') newValue = changeNewValue(newValue);
+        console.log(newValue);
         const newLine = wholeLine.replace(oldRegex, newValue);
         editor.edit(editBuilder => {
             editBuilder.replace(new vscode.Range(startPosition, endPosition), newLine);
@@ -347,15 +371,6 @@ function newline(grammaticalLine) {
 
 //--------------------Conditional statements----------------------------------------
 function conditional(grammaticalLine) {
-    // console.log(grammaticalLine);
-    // const ifStatementRegex = /\bif\b(?!else)\b/g;
-    // const match = grammaticalLine.match(ifStatementRegex);
-    // console.log(match);
-    // if (match) {
-    //     return `\nif (condition) {\n  // Your condition body here\n}\n`;
-    // }
-    // else return false
-
     if (grammaticalLine == 'if') {
         return `\nif (condition) {\n  // Your condition body here\n}\n`;
     }
@@ -368,29 +383,155 @@ function conditional(grammaticalLine) {
     else {
         return false
     }
-
-
 }
 
+//--------------------Switch Case----------------------------------------
+function handleSwitchCase(grammaticalLine) {
+    const switchCaseRegex = /^switch\s+(\S+)$/i;
+    const caseRegex = /^case\s+(\S+)(:)?$/i;
+    const defaultRegex = /^default(:)?$/i;
+    const endBracketRegex = /^end\s+bracket$/i;
+    const switchMatch = grammaticalLine.match(switchCaseRegex);
+    const caseMatch = grammaticalLine.match(caseRegex);
+    const defaultMatch = grammaticalLine.match(defaultRegex);
+    const endBracketMatch = grammaticalLine.match(endBracketRegex);
+
+    if (switchMatch) {
+        const switchExpression = switchMatch[1];
+        return `switch (${switchExpression}) {\n`;
+    } else if (caseMatch) {
+        const caseValue = caseMatch[1];
+        return `  case ${caseValue}:\n    // code block\n    break;\n`;
+    } else if (defaultMatch) {
+        return `  default:\n    // code block\n    break;\n`;
+    } else if (endBracketMatch) {
+        return `}\n`;
+    }
+    else {
+        return false;
+    }
+}
+
+//--------------------Delete----------------------------------------
+function handleDelete(grammaticalLine) {
+    const deleteRegex = /\bdelete\b/i;
+
+    const match = grammaticalLine.match(deleteRegex);
+    if (match) {
+        const vscode = require('vscode');
+        const editor = vscode.window.activeTextEditor;
+        const selection = editor.selection;
+        const currentLine = editor.document.lineAt(selection.active.line);
+        editor.edit(editBuilder => {
+            editBuilder.delete(currentLine.rangeIncludingLineBreak);
+        });
+        return true;
+    }
+    else return false
+}
+
+//--------------------backspace----------------------------------------
+function handleBackspace(grammaticalLine) {
+    const backRegex = /\bback\b/i;
+
+    const match = grammaticalLine.match(backRegex);
+    if (match) {
+        const vscode = require('vscode');
+        const editor = vscode.window.activeTextEditor;
+        const selection = editor.selection;
+        const currentPosition = selection.active;
+        if (currentPosition.character > 0) {
+            const newPosition = currentPosition.with(undefined, currentPosition.character - 1);
+            const range = new vscode.Range(newPosition, currentPosition);
+            editor.edit(editBuilder => {
+                editBuilder.delete(range);
+            });
+        }
+        return true;
+    }
+    else return false
+}
+
+//--------------------conditionEnd----------------------------------------
+function handleGoToConditionEnd(grammaticalLine) {
+    const conditionEndRegex = /\bcondition end\b/i;
+
+    const match = grammaticalLine.match(conditionEndRegex);
+    if (match) {
+        const vscode = require('vscode');
+        const editor = vscode.window.activeTextEditor;
+        const document = editor.document;
+
+        const currentPosition = editor.selection.active;
+        const currentLine = document.lineAt(currentPosition.line);
+        const wholeLine = currentLine.text;
+        const ifElseIfRegex = /\b(if|else if)\b/i;
+        const containsIfElseIf = ifElseIfRegex.test(wholeLine);
+        if (containsIfElseIf) {
+            const closingParenthesisIndex = wholeLine.lastIndexOf(')');
+            if (closingParenthesisIndex !== -1) {
+                const newPosition = new vscode.Position(currentPosition.line, closingParenthesisIndex);
+                const newSelection = new vscode.Selection(newPosition, newPosition);
+                editor.selection = newSelection;
+                return true;
+            }
+        }
+    }
+    else return false
+}
+
+//--------------------put AND----------------------------------------
+function putAnd(grammaticalLine) {
+    const andRegex = /\band\b/i;
+
+    const match = grammaticalLine.match(andRegex);
+    if (match) {
+        return ` && `;
+    }
+    else return false
+}
+
+//--------------------put OR----------------------------------------
+function putOr(grammaticalLine) {
+    const orRegex = /\bor\b/i;
+
+    const match = grammaticalLine.match(orRegex);
+    if (match) {
+        return ` || `;
+    }
+    else return false
+}
+
+//--------------------put condition----------------------------------------
+function putExtraCondition(grammaticalLine) {
+    const regex = /\b(?:put|write)\s+(.+)\b/i;
+
+    const match = grammaticalLine.match(regex);
+    if (match) {
+        return ` ${changeNewValue(match[1])} `;
+    }
+    else return false
+}
 
 module.exports = function convertGrammaticalLineToCode(vscode, grammaticalLine) {
     let executedInternalCommand = false
-
-    if (handleCopy(grammaticalLine, vscode) || handleReplace(grammaticalLine, vscode) || handlePaste(grammaticalLine, vscode) || handleUndo(grammaticalLine, vscode) || handleRedo(grammaticalLine, vscode) || handleCursorMove(grammaticalLine, vscode) || handleSelection(grammaticalLine, vscode)) {
+    if (handleGoToConditionEnd(grammaticalLine) || handleBackspace(grammaticalLine) || handleDelete(grammaticalLine) || handleCopy(grammaticalLine, vscode) || handleReplace(grammaticalLine, vscode) || handlePaste(grammaticalLine, vscode) || handleUndo(grammaticalLine, vscode) || handleRedo(grammaticalLine, vscode) || handleCursorMove(grammaticalLine, vscode) || handleSelection(grammaticalLine, vscode)) {
         executedInternalCommand = true
     }
     if (handlePrint(grammaticalLine)) return handlePrint(grammaticalLine)
     if (space(grammaticalLine)) return space(grammaticalLine)
     if (newline(grammaticalLine)) return newline(grammaticalLine)
     if (conditional(grammaticalLine)) return conditional(grammaticalLine)
+    if (handleSwitchCase(grammaticalLine)) return handleSwitchCase(grammaticalLine)
+    if (putAnd(grammaticalLine)) return putAnd(grammaticalLine)
+    if (putOr(grammaticalLine)) return putOr(grammaticalLine)
+    if (putExtraCondition(grammaticalLine)) return putExtraCondition(grammaticalLine)
     if (handleLoop(grammaticalLine)) return handleLoop(grammaticalLine)
     if (handleFunction(grammaticalLine)) return handleFunction(grammaticalLine)
     if (handleVariableDeclaration(grammaticalLine)) return handleVariableDeclaration(grammaticalLine)
     if (executedInternalCommand) { return executedInternalCommand }
     return null;
 };
-
-
 
 // handled commands:
 // go to x
@@ -407,4 +548,13 @@ module.exports = function convertGrammaticalLineToCode(vscode, grammaticalLine) 
 // space
 // newline
 // condition if,else if,else
+// switch
+// delete
+// backspace
+// condition end
+// and operator
+// or operator
+// put extra condition
+
+
 
